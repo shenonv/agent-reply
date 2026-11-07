@@ -154,3 +154,17 @@ test("sends new lines as they are written (live)", async () => {
   });
   assert.ok(!res.timedOut, "live line arrived");
 });
+
+test("overview: needs the key, streams progress, and masks private info", async () => {
+  const denied = await get(app.port, "/api/overview");
+  assert.equal(denied.status, 401);
+  const res = await readStream(app.port, "/api/overview", { cookie }, (ev) => ev.some((e) => e.event === "overview"));
+  assert.ok(res.events.some((e) => e.event === "progress" && e.data.done === e.data.total));
+  const body = res.events.find((e) => e.event === "overview").data;
+  assert.equal(body.masked, true);
+  assert.equal(body.sessions.length, 1);
+  assert.equal(body.sessions[0].project, handle);
+  assert.ok(body.sessions[0].tokens.total > 0);
+  assert.doesNotMatch(res.raw, /demo/i);
+  assert.doesNotMatch(res.raw, /sk-ant-api03|supersecretvalue123/);
+});

@@ -3,11 +3,26 @@
 // Nothing is saved: all state lives in this tab's memory and is gone when you close it.
 import { h, mount, clip, ago } from "./dom.js";
 import { createModel, addRecords, addAgentMeta, titleOf } from "/core/model.js";
+import { shortNumber } from "/core/stats.js";
 import { renderSession } from "./views/session.js";
+import { renderOverview } from "./views/overview.js";
 
 const LIVE_MS = 2 * 60_000;
+const OVERVIEW_FRESH_MS = 60_000;
 
 export const state = {
+  page: "list", // "list" | "overview" | "session"
+  overview: {
+    /** @type {any[] | null} */ sessions: null,
+    loading: false,
+    done: 0,
+    total: 0,
+    skipped: 0,
+    error: "",
+    range: 30,
+    loadedAt: 0,
+  },
+  loadOverview,
   /** @type {any[]} */ sessions: [],
   listLoaded: false,
   listError: "",
@@ -63,12 +78,65 @@ function route() {
     const r = Number(parts[4]);
     state.request = Number.isInteger(r) && r >= 0 ? r : -1;
     state.step = parts[5] && /^s\d+$/.test(parts[5]) ? parts[5] : null;
+    state.page = "session";
     if (!same) connect();
+  } else if (parts[0] === "overview") {
+    state.page = "overview";
+    state.current = null;
+    disconnect();
+    loadOverview(false);
   } else {
+    state.page = "list";
     state.current = null;
     disconnect();
     loadSessions();
+    loadOverview(false); // in the background, for the token and health badges on each card
   }
+  render();
+}
+
+/** @type {EventSource | null} */
+let overviewSource = null;
+
+/** Reads every session's summary from the server, with progress. Reuses a recent result unless forced. */
+function loadOverview(force) {
+  const o = state.overview;
+  if (o.loading) return;
+  if (!force && o.sessions && Date.now() - o.loadedAt < OVERVIEW_FRESH_MS) return;
+  o.loading = true;
+  o.error = "";
+  o.done = 0;
+  o.total = 0;
+  overviewSource?.close();
+  const es = new EventSource(`/api/overview${state.reveal ? "?reveal=1" : ""}`);
+  overviewSource = es;
+  es.addEventListener("progress", (e) => {
+    const d = parse(e);
+    if (!d) return;
+    o.done = Number(d.done) || 0;
+    o.total = Number(d.total) || 0;
+    render();
+  });
+  es.addEventListener("overview", (e) => {
+    const d = parse(e);
+    es.close();
+    o.loading = false;
+    if (!d || !Array.isArray(d.sessions)) {
+      o.error = "Couldn't read the overview.";
+    } else {
+      o.sessions = d.sessions;
+      o.skipped = Number(d.skipped) || 0;
+      o.loadedAt = Date.now();
+    }
+    render();
+  });
+  es.addEventListener("error", () => {
+    if (!o.loading) return;
+    es.close();
+    o.loading = false;
+    o.error = "Couldn't read the overview. Is agent-replay still running in the terminal?";
+    render();
+  });
   render();
 }
 
@@ -156,8 +224,14 @@ function parse(e) {
 export function setReveal(on) {
   state.reveal = on;
   state.confirmReveal = false;
+  overviewSource?.close();
+  state.overview.loading = false;
+  state.overview.sessions = null; // its text was masked (or not) for the old setting
   if (state.current) connect();
-  else loadSessions();
+  else {
+    loadSessions();
+    loadOverview(true);
+  }
   render();
 }
 
@@ -165,7 +239,7 @@ export function setReveal(on) {
 
 function draw() {
   const scrolls = saveScroll();
-  mount(app, header(), state.current ? renderSession(state) : sessionList());
+  mount(app, header(), state.page === "session" ? renderSession(state) : state.page === "overview" ? renderOverview(state) : sessionList());
   restoreScroll(scrolls);
   document.title = state.current && state.ready ? `${clip(titleOf(state.model), 50)} · agent-replay` : "agent-replay";
 }
@@ -197,7 +271,9 @@ function header() {
     : h("button", { class: "pill pill-safe", onclick: () => { state.confirmReveal = true; render(); }, title: "Passwords, keys, emails, your home folder and user name are hidden" }, "🔒 Private info hidden");
   const bar = h("header", { class: "top" },
     h("a", { class: "brand", href: "#/" }, h("span", { class: "logo", "aria-hidden": "true" }, "▶"), "agent-replay"),
-    state.current ? h("a", { class: "crumb", href: "#/" }, "← All sessions") : null,
+    h("nav", { class: "nav", "aria-label": "Pages" },
+      h("a", { class: `nav-link${state.page !== "overview" ? " active" : ""}`, href: "#/", "aria-current": state.page === "list" ? "page" : undefined }, state.page === "session" ? "← Sessions" : "Sessions"),
+      h("a", { class: `nav-link${state.page === "overview" ? " active" : ""}`, href: "#/overview", "aria-current": state.page === "overview" ? "page" : undefined }, "Overview")),
     h("span", { class: "spacer" }),
     h("span", { class: "badge-local", title: "Runs only on this computer. Uses no tokens. Saves nothing." }, "Local · read-only · no tokens"),
     privacy,
@@ -249,12 +325,17 @@ function sessionList() {
 }
 
 function card(s) {
+  const sum = state.overview.sessions?.find((x) => x.sessionId === s.sessionId);
+  const score = sum && sum.health.toolCalls > 0 ? sum.health.score : null;
   return h("a", { class: "card", href: `#/s/${s.project}/${s.sessionId}/map/-1` },
     h("div", { class: "card-title" }, clip(s.title, 140)),
     h("div", { class: "card-meta" },
       h("span", { title: "Folder" }, "📁 ", clip(s.folder, 60)),
       s.branch ? h("span", { title: "Git branch" }, "⑂ ", clip(s.branch, 30)) : null,
       h("span", null, ago(s.lastActive)),
+      sum ? h("span", { title: "Tokens used in this session" }, `${shortNumber(sum.tokens.total)} tokens`) : null,
+      score !== null ? h("span", { class: `health-badge ${score >= 85 ? "good" : score >= 60 ? "ok" : "bad"}`, title: `Health score: ${sum.health.label}` }, `health ${score}`) : null,
+      sum?.health.risky ? h("span", { class: "risk-count", title: "Risky steps in this session" }, h("span", { class: "risk-dot risk-risky inline" }), ` ${sum.health.risky} risky`) : null,
     ),
   );
 }
@@ -272,6 +353,6 @@ function dayLabel(ts) {
 
 window.addEventListener("hashchange", route);
 setInterval(() => {
-  if (!state.current && !document.hidden) loadSessions();
+  if (state.page === "list" && !document.hidden) loadSessions();
 }, 15_000);
 route();

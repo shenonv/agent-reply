@@ -51,7 +51,17 @@ Claude Code uses).
 ## What you can do
 
 **Find a session.** Every session on your computer, newest first, grouped by day, with search and a "Running now"
-list.
+list. Each session shows its token count, health score and any risky steps.
+
+**Overview.** Everything across all your sessions for the last 7, 30 or 90 days, or all time:
+- total tokens, sessions, requests, cache reuse, the helpers' share and the average health
+- a chart of tokens per day (with a table view)
+- breakdowns by model and by project folder
+- the biggest and the roughest sessions
+- every risky step across all sessions, each one linking to the exact step
+- the most-used tools and the most-changed files
+
+The first visit reads each log once and shows its progress. After that, only sessions that changed are read again.
 
 **Map.** One lane per participant, steps left to right. Each box says what happened ("Reads a file", "Runs the
 tests", "Briefs a helper"), marked ✓ worked, ✕ didn't work or ⊘ you said no. Messages between you, Claude and its
@@ -123,7 +133,8 @@ There's no build step and nothing to install.
 | `src/server/stream.js` | Live updates (Server-Sent Events) |
 | `src/server/slim.js` | Drops every field the page doesn't need |
 | `src/server/redact.js` | "Hide private info" |
-| `src/core/` | Shared with the page: session model, plain-English explanations, stats, health, risk, files |
+| `src/server/overview.js` | Summarises every session for the Overview page (kept in memory only) |
+| `src/core/` | Shared with the page: session model, plain-English explanations, stats, health, risk, files, overview totals |
 | `public/` | The page (plain JavaScript, no framework) |
 | `test/` | Tests, with made-up sample logs in `test/fixtures` |
 

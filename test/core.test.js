@@ -140,3 +140,30 @@ test("explain: plain words for tools", () => {
   assert.equal(describeTool("mcp__github__create_issue", {}).subtitle, "from github");
   assert.equal(describeTool("SomethingNew", {}).title, "Uses SomethingNew");
 });
+
+test("overview: one session summarised, then combined over a time range", async () => {
+  const { summarizeSession, combine, dayKey } = await import("../src/core/overview.js");
+  const s = { ...summarizeSession(fixtureModel()), project: "p", sessionId: "s" };
+  assert.equal(s.title, "Fix the checkout total");
+  assert.equal(s.requests, 2);
+  assert.equal(s.helpers, 1);
+  assert.equal(Object.values(s.daily).flatMap((m) => Object.values(m)).reduce((a, b) => a + b, 0), s.tokens.total);
+  assert.ok(s.helperTokens > 0);
+  assert.ok(s.risks.some((r) => r.level === "risky" && /push --force/.test(r.what)));
+  assert.ok(s.files.some((f) => f.name === "README.md" && f.created));
+
+  const day = dayKey(Date.parse("2026-11-01T10:00:00.000Z"));
+  const now = Date.parse(`${day}T12:00:00`);
+  const all = combine([s], 0, now);
+  assert.equal(all.sessions, 1);
+  assert.equal(all.tokens, s.tokens.total);
+  assert.equal(all.requests, 2);
+  assert.equal(all.timeline.at(-1).tokens, s.tokens.total);
+  assert.equal(all.byModel[0][0], "claude-opus-5-5");
+  assert.equal(all.health.average, s.health.score);
+  const week = combine([s], 7, now);
+  assert.equal(week.timeline.length, 7);
+  const later = combine([s], 7, now + 30 * 86_400_000); // a month later the session is out of range
+  assert.equal(later.sessions, 0);
+  assert.equal(later.tokens, 0);
+});

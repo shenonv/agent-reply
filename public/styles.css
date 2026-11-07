@@ -11,6 +11,8 @@
   --bad: #b91c1c;
   --warn: #b45309;
   --link: #1d4ed8;
+  --chart: #c2410c; /* data marks; checked for contrast against the light surface */
+  --grid: #ececE7;
   --lane-l: 97%;
   --box-l: 99%;
   --box-line-l: 70%;
@@ -31,6 +33,8 @@
     --bad: #f87171;
     --warn: #fbbf24;
     --link: #93c5fd;
+    --chart: #e0682a; /* its own dark step, checked against the dark surface */
+    --grid: #2b2b28;
     --lane-l: 14%;
     --box-l: 18%;
     --box-line-l: 45%;
@@ -218,7 +222,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .table tr.click:hover { background: var(--panel-2); }
 .bad { color: var(--bad); }
 .bar { display: block; height: 0.5rem; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
-.bar-fill { display: block; height: 100%; background: var(--accent); }
+.bar-fill { display: block; height: 100%; background: var(--chart); border-radius: 0 4px 4px 0; }
 .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; }
 .score { display: flex; gap: 1rem; align-items: center; padding: 1rem; border-radius: 0.6rem; background: var(--panel); border: 1px solid var(--line); }
 .score-num { font-size: 2.6rem; font-weight: 800; min-width: 4rem; text-align: center; }
@@ -250,6 +254,43 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dl-add { background: color-mix(in srgb, var(--good) 15%, transparent); }
 .dl-del { background: color-mix(in srgb, var(--bad) 15%, transparent); }
 .dl-mark { display: inline-block; width: 1.2rem; color: var(--muted); user-select: none; }
+
+/* navigation */
+.nav { display: flex; gap: 0.25rem; }
+.nav-link { text-decoration: none; color: var(--muted); padding: 0.25rem 0.6rem; border-radius: 0.4rem; }
+.nav-link:hover { background: var(--panel-2); color: var(--text); }
+.nav-link.active { color: var(--text); background: var(--panel-2); font-weight: 600; }
+.health-badge { border-radius: 999px; padding: 0 0.45rem; border: 1px solid var(--line); }
+.health-badge.good { color: var(--good); }
+.health-badge.ok { color: var(--warn); }
+.health-badge.bad { color: var(--bad); }
+
+/* overview */
+.page.wide { max-width: 72rem; }
+.filters { align-items: center; margin-bottom: 0.5rem; }
+.filters .spacer { flex: 1; }
+.loading { padding: 2rem 0; }
+.progress { display: block; height: 0.5rem; max-width: 28rem; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.progress-fill { display: block; height: 100%; background: var(--chart); transition: width 0.2s; }
+.card.compact { padding: 0.5rem 0.75rem; }
+.risk-link { display: block; color: var(--text); text-decoration: none; }
+.risk-link:hover { border-color: var(--accent); }
+.chart-box { background: var(--panel); border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.75rem 1rem; }
+.readout { font-size: 0.85rem; color: var(--muted); min-height: 1.3rem; margin-bottom: 0.4rem; }
+.chart { display: flex; gap: 0.5rem; height: 12rem; }
+.y-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.7rem; color: var(--muted); text-align: right; min-width: 2.6rem; transform: translateY(-0.4rem); height: calc(100% + 0.8rem); }
+.plot { position: relative; flex: 1; border-bottom: 1px solid var(--line); }
+.grid { position: absolute; left: 0; right: 0; height: 1px; background: var(--grid); }
+.grid.g100 { top: 0; }
+.grid.g50 { top: 50%; }
+.cols { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 2px; }
+.col { flex: 1 1 0; max-width: 24px; height: 100%; display: flex; align-items: flex-end; cursor: default; border-radius: 4px 4px 0 0; }
+.col:hover, .col:focus-visible { background: var(--panel-2); outline: none; }
+.col-fill { display: block; width: 100%; background: var(--chart); border-radius: 4px 4px 0 0; min-height: 0; }
+.col:not(.zero) .col-fill { min-height: 2px; }
+.x-axis { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); padding: 0.3rem 0 0 3.1rem; }
+.table-view { margin-top: 0.5rem; font-size: 0.85rem; }
+.table-view summary { cursor: pointer; color: var(--muted); }
 
 /* small screens */
 @media (max-width: 900px) {

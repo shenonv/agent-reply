@@ -16,6 +16,7 @@ import { resolveSession, listSessionFiles, realProjectsRoot } from "./paths.js";
 import { readHeadTail, parseLines } from "./reader.js";
 import { summarize } from "../core/records.js";
 import { streamSession } from "./stream.js";
+import { createOverview } from "./overview.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, "..", "..", "public");
@@ -65,6 +66,7 @@ export async function startServer(opts = {}) {
   const listCache = new Map(); // in memory only, so the list doesn't re-read unchanged files
   let streams = 0;
   let port = 0;
+  const overview = createOverview();
 
   // Claude Code names project folders after their full path ("C--Users-<you>-code-app"), which would leak your
   // user name. The page only ever sees an opaque handle that changes every launch.
@@ -132,6 +134,12 @@ export async function startServer(opts = {}) {
     if (url.pathname === "/") return serveFile(res, files.get("/static/index.html"));
     if (url.pathname.startsWith("/static/") || url.pathname.startsWith("/core/")) return serveFile(res, files.get(url.pathname));
     if (url.pathname === "/api/sessions") return sendJson(res, await listSessions(reveal ? null : redact));
+    if (url.pathname === "/api/overview") {
+      if (streams >= MAX_STREAMS) return send(res, 429, "Too many open views. Close a tab and try again.");
+      streams++;
+      req.on("close", () => streams--);
+      return overview.stream(req, res, handleOf, reveal ? null : redact);
+    }
     if (url.pathname === "/api/stream") {
       const project = await projectFromHandle(url.searchParams.get("project"));
       const session = project ? await resolveSession(project, url.searchParams.get("session")) : null;
