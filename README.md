@@ -17,8 +17,8 @@ every step explained in plain words.
 You need [Node.js](https://nodejs.org) 20 or newer and Claude Code (used at least once, so there are logs to show).
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-NAME/agent-replay.git
-cd agent-replay
+git clone https://github.com/shenonv/agent-reply.git
+cd agent-reply
 node bin/agent-replay.js
 ```
 

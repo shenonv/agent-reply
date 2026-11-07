@@ -7,7 +7,7 @@ The name `agent-replay` is already taken on npm, so publish under your own scope
 1. In `package.json`:
    - set `"name"` to your scoped name
    - remove `"private": true`
-   - add `"repository": { "type": "git", "url": "git+https://github.com/YOUR-GITHUB-NAME/agent-replay.git" }`
+   - add `"repository": { "type": "git", "url": "git+https://github.com/shenonv/agent-reply.git" }`
 2. Turn on two-factor authentication for your npm account.
 3. Publish, either:
    - **from GitHub (recommended):** create an npm "automation" token, save it in the GitHub repo as the secret
