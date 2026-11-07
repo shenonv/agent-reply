@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+.DS_Store
+Thumbs.db
+# Never commit real Claude Code logs
+*.jsonl
+!test/fixtures/**/*.jsonl

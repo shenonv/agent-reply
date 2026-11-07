@@ -1,0 +1,2 @@
+# Always LF: a CRLF in bin/agent-replay.js's "#!/usr/bin/env node" line breaks npx on macOS and Linux.
+* text=auto eol=lf

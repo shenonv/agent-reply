@@ -1,0 +1,34 @@
+{
+  "name": "agent-replay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "See what Claude Code and its helper agents did, in plain English. A local, read-only, zero-dependency session viewer that never uses tokens or sends data anywhere.",
+  "type": "module",
+  "bin": {
+    "agent-replay": "bin/agent-replay.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "public/",
+    "SECURITY.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/agent-replay.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "agents",
+    "sub-agents",
+    "replay",
+    "viewer",
+    "privacy",
+    "local"
+  ],
+  "license": "MIT"
+}
