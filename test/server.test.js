@@ -168,3 +168,13 @@ test("overview: needs the key, streams progress, and masks private info", async 
   assert.doesNotMatch(res.raw, /demo/i);
   assert.doesNotMatch(res.raw, /sk-ant-api03|supersecretvalue123/);
 });
+
+test("sessions are grouped by repository, with names masked", async () => {
+  const body = JSON.parse((await get(app.port, "/api/sessions", { cookie })).body);
+  const s = body.sessions[0];
+  assert.match(s.repo, /^[0-9a-f]{24}$/);
+  assert.notEqual(s.repo, s.project);
+  assert.equal(s.repoName, "shop");
+  assert.equal(s.repoPath, "~\\shop");
+  assert.equal(s.worktree, false);
+});

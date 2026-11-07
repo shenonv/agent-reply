@@ -11,7 +11,8 @@ const LIVE_MS = 2 * 60_000;
 const OVERVIEW_FRESH_MS = 60_000;
 
 export const state = {
-  page: "list", // "list" | "overview" | "session"
+  page: "list", // "list" (repositories) | "repo" | "overview" | "session"
+  /** @type {string | null} */ repo: null,
   overview: {
     /** @type {any[] | null} */ sessions: null,
     loading: false,
@@ -80,6 +81,14 @@ function route() {
     state.step = parts[5] && /^s\d+$/.test(parts[5]) ? parts[5] : null;
     state.page = "session";
     if (!same) connect();
+    if (!state.listLoaded) loadSessions(); // to know which repository this session belongs to
+  } else if (parts[0] === "r" && /^[0-9a-f]{24}$/.test(parts[1] ?? "")) {
+    state.page = "repo";
+    state.repo = parts[1];
+    state.current = null;
+    disconnect();
+    loadSessions();
+    loadOverview(false);
   } else if (parts[0] === "overview") {
     state.page = "overview";
     state.current = null;
@@ -239,7 +248,7 @@ export function setReveal(on) {
 
 function draw() {
   const scrolls = saveScroll();
-  mount(app, header(), state.page === "session" ? renderSession(state) : state.page === "overview" ? renderOverview(state) : sessionList());
+  mount(app, header(), state.page === "session" ? renderSession(state) : state.page === "overview" ? renderOverview(state) : state.page === "repo" ? repoPage() : repoList());
   restoreScroll(scrolls);
   document.title = state.current && state.ready ? `${clip(titleOf(state.model), 50)} · agent-replay` : "agent-replay";
 }
@@ -272,7 +281,8 @@ function header() {
   const bar = h("header", { class: "top" },
     h("a", { class: "brand", href: "#/" }, h("span", { class: "logo", "aria-hidden": "true" }, "▶"), "agent-replay"),
     h("nav", { class: "nav", "aria-label": "Pages" },
-      h("a", { class: `nav-link${state.page !== "overview" ? " active" : ""}`, href: "#/", "aria-current": state.page === "list" ? "page" : undefined }, state.page === "session" ? "← Sessions" : "Sessions"),
+      h("a", { class: `nav-link${state.page !== "overview" ? " active" : ""}`, href: "#/", "aria-current": state.page === "list" ? "page" : undefined }, "Repositories"),
+      backLink(),
       h("a", { class: `nav-link${state.page === "overview" ? " active" : ""}`, href: "#/overview", "aria-current": state.page === "overview" ? "page" : undefined }, "Overview")),
     h("span", { class: "spacer" }),
     h("span", { class: "badge-local", title: "Runs only on this computer. Uses no tokens. Saves nothing." }, "Local · read-only · no tokens"),
@@ -286,11 +296,111 @@ function header() {
   ));
 }
 
-function sessionList() {
-  if (!state.listLoaded) return h("main", { class: "page" }, h("p", { class: "muted" }, "Loading your sessions…"));
+/** In a session: a link back to its repository. */
+function backLink() {
+  if (state.page !== "session" || !state.current) return null;
+  const s = state.sessions.find((x) => x.sessionId === state.current?.session);
+  if (!s) return null;
+  return h("a", { class: "nav-link", href: `#/r/${s.repo}`, title: s.repoPath }, "← ", clip(s.repoName, 30));
+}
+
+/** Sessions grouped by repository, most recently used first. */
+function groupRepos(sessions) {
+  /** @type {Map<string, { key: string, name: string, path: string, sessions: any[], lastActive: number, live: boolean, branches: Set<string>, worktrees: number }>} */
+  const repos = new Map();
+  const now = Date.now();
+  for (const s of sessions) {
+    let r = repos.get(s.repo);
+    if (!r) repos.set(s.repo, (r = { key: s.repo, name: s.repoName, path: s.repoPath, sessions: [], lastActive: 0, live: false, branches: new Set(), worktrees: 0 }));
+    r.sessions.push(s);
+    r.lastActive = Math.max(r.lastActive, s.lastActive);
+    if (now - s.lastActive < LIVE_MS) r.live = true;
+    if (s.branch) r.branches.add(s.branch);
+    if (s.worktree) r.worktrees++;
+  }
+  return [...repos.values()].sort((a, b) => b.lastActive - a.lastActive);
+}
+
+/** Totals for some sessions, from the overview summaries (once they've loaded). */
+function totalsFor(sessions) {
+  const sums = state.overview.sessions;
+  if (!sums) return null;
+  const ids = new Set(sessions.map((s) => s.sessionId));
+  const mine = sums.filter((x) => ids.has(x.sessionId));
+  const scored = mine.filter((x) => x.health.toolCalls > 0);
+  return {
+    tokens: mine.reduce((n, x) => n + x.tokens.total, 0),
+    requests: mine.reduce((n, x) => n + x.requests, 0),
+    health: scored.length ? Math.round(scored.reduce((n, x) => n + x.health.score, 0) / scored.length) : null,
+    risky: mine.reduce((n, x) => n + x.health.risky, 0),
+    errors: mine.reduce((n, x) => n + x.health.errors, 0),
+  };
+}
+
+const healthClass = (score) => (score >= 85 ? "good" : score >= 60 ? "ok" : "bad");
+
+function searchBox(placeholder) {
+  const search = h("input", { class: "search", type: "search", placeholder, value: state.filter, "aria-label": placeholder });
+  search.addEventListener("input", () => {
+    state.filter = /** @type {HTMLInputElement} */ (search).value;
+    render();
+    requestAnimationFrame(() => {
+      const el = /** @type {HTMLInputElement | null} */ (document.querySelector(".search"));
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    });
+  });
+  return search;
+}
+
+const matches = (s, q) => !q || `${s.title} ${s.repoName} ${s.repoPath} ${s.branch ?? ""} ${s.models.join(" ")}`.toLowerCase().includes(q);
+
+function repoList() {
+  if (!state.listLoaded) return h("main", { class: "page" }, h("p", { class: "muted" }, "Loading your repositories…"));
   if (state.listError) return h("main", { class: "page" }, h("p", { class: "error" }, state.listError));
   const q = state.filter.trim().toLowerCase();
-  const list = state.sessions.filter((s) => !q || `${s.title} ${s.folder} ${s.branch ?? ""} ${s.models.join(" ")}`.toLowerCase().includes(q));
+  const repos = groupRepos(state.sessions).filter((r) => !q || r.sessions.some((s) => matches(s, q)));
+  return h("main", { class: "page", "data-scroll": "list" },
+    h("div", { class: "intro" },
+      h("h1", null, "Your repositories"),
+      h("p", { class: "muted" }, "Every folder you've used Claude Code in. Pick one to see its sessions, then what Claude and its helpers did, step by step. Everything stays on this computer."),
+      h("div", { class: "row" }, searchBox("Search repositories and sessions"), h("button", { class: "btn", onclick: loadSessions }, "Refresh")),
+    ),
+    state.sessions.length === 0 ? h("div", { class: "empty" }, h("p", null, "No sessions found yet."), h("p", { class: "muted" }, "agent-replay reads the logs Claude Code keeps in the .claude/projects folder in your home folder. Use Claude Code once and they'll appear here.")) : null,
+    h("div", { class: "repo-grid" }, repos.map((r) => repoCard(r, q))),
+    repos.length === 0 && state.sessions.length ? h("p", { class: "muted" }, "Nothing matches your search.") : null,
+  );
+}
+
+function repoCard(r, q) {
+  const t = totalsFor(r.sessions);
+  const hits = q ? r.sessions.filter((s) => matches(s, q)).length : 0;
+  return h("a", { class: "card repo-card", href: `#/r/${r.key}` },
+    h("div", { class: "repo-name" }, r.live ? h("span", { class: "dot-live", title: "Claude Code is working here right now" }) : null, h("span", { "aria-hidden": "true" }, "📁 "), clip(r.name, 60)),
+    r.path ? h("div", { class: "repo-path" }, clip(r.path, 80)) : null,
+    h("div", { class: "card-meta" },
+      h("span", null, `${r.sessions.length} session${r.sessions.length > 1 ? "s" : ""}`),
+      hits ? h("span", null, `${hits} match${hits > 1 ? "es" : ""}`) : null,
+      h("span", null, `last used ${ago(r.lastActive)}`),
+      r.branches.size ? h("span", { title: [...r.branches].join(", ") }, "⑂ ", `${r.branches.size} branch${r.branches.size > 1 ? "es" : ""}`) : null,
+      r.worktrees ? h("span", { title: "Sessions run in Claude Code worktrees of this repository" }, `${r.worktrees} in worktrees`) : null,
+    ),
+    t ? h("div", { class: "card-meta" },
+      h("span", null, `${shortNumber(t.tokens)} tokens`),
+      t.health !== null ? h("span", { class: `health-badge ${healthClass(t.health)}`, title: "Average health score of its sessions" }, `health ${t.health}`) : null,
+      t.risky ? h("span", { class: "risk-count", title: "Risky steps across its sessions" }, h("span", { class: "risk-dot risk-risky inline" }), ` ${t.risky} risky`) : null,
+    ) : null,
+  );
+}
+
+function repoPage() {
+  if (!state.listLoaded) return h("main", { class: "page" }, h("p", { class: "muted" }, "Loading…"));
+  if (state.listError) return h("main", { class: "page" }, h("p", { class: "error" }, state.listError));
+  const r = groupRepos(state.sessions).find((x) => x.key === state.repo);
+  if (!r) return h("main", { class: "page" }, h("p", null, "This repository isn't in your logs any more."), h("a", { href: "#/" }, "See all repositories"));
+  const q = state.filter.trim().toLowerCase();
+  const list = r.sessions.filter((s) => matches(s, q));
+  const t = totalsFor(r.sessions);
   const now = Date.now();
   const live = list.filter((s) => now - s.lastActive < LIVE_MS);
   /** @type {Map<string, any[]>} */
@@ -301,26 +411,23 @@ function sessionList() {
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day)?.push(s);
   }
-  const search = h("input", { class: "search", type: "search", placeholder: "Search sessions by title, folder, branch or model", value: state.filter, "aria-label": "Search sessions" });
-  search.addEventListener("input", () => {
-    state.filter = /** @type {HTMLInputElement} */ (search).value;
-    render();
-    requestAnimationFrame(() => {
-      const el = /** @type {HTMLInputElement | null} */ (document.querySelector(".search"));
-      el?.focus();
-      el?.setSelectionRange(el.value.length, el.value.length);
-    });
-  });
-  return h("main", { class: "page", "data-scroll": "list" },
+  const tile = (label, value, note) => h("div", { class: "card stat" }, h("div", { class: "stat-title" }, label), h("div", { class: "stat-value" }, value), h("div", { class: "stat-note" }, note));
+  return h("main", { class: "page", "data-scroll": `repo-${r.key}` },
     h("div", { class: "intro" },
-      h("h1", null, "Your Claude Code sessions"),
-      h("p", { class: "muted" }, "Pick one to see what Claude and its helpers did, step by step, in plain words. Everything stays on this computer."),
-      h("div", { class: "row" }, search, h("button", { class: "btn", onclick: loadSessions }, "Refresh")),
+      h("a", { class: "crumb", href: "#/" }, "← All repositories"),
+      h("h1", null, r.live ? h("span", { class: "dot-live" }) : null, r.name),
+      r.path ? h("p", { class: "muted repo-path" }, r.path) : null,
     ),
-    state.sessions.length === 0 ? h("div", { class: "empty" }, h("p", null, "No sessions found yet."), h("p", { class: "muted" }, "agent-replay reads the logs Claude Code keeps in the .claude/projects folder in your home folder. Use Claude Code once and they'll appear here.")) : null,
+    h("div", { class: "cards" },
+      tile("Sessions", String(r.sessions.length), `last used ${ago(r.lastActive)}`),
+      tile("Tokens", t ? shortNumber(t.tokens) : "…", t ? `${t.requests} requests from you` : "Adding up…"),
+      tile("Average health", t && t.health !== null ? String(t.health) : t ? "–" : "…", t ? `${t.errors} steps didn't work` : ""),
+      tile("Risky steps", t ? String(t.risky) : "…", "commands worth a second look"),
+    ),
+    h("div", { class: "row search-row" }, searchBox("Search this repository's sessions"), h("button", { class: "btn", onclick: loadSessions }, "Refresh")),
     live.length ? h("section", null, h("h2", null, h("span", { class: "dot-live" }), "Running now"), live.map(card)) : null,
     [...byDay].map(([day, items]) => h("section", null, h("h2", null, day), items.map(card))),
-    list.length === 0 && state.sessions.length ? h("p", { class: "muted" }, "No session matches your search.") : null,
+    list.length === 0 ? h("p", { class: "muted" }, "No session matches your search.") : null,
   );
 }
 
@@ -330,7 +437,7 @@ function card(s) {
   return h("a", { class: "card", href: `#/s/${s.project}/${s.sessionId}/map/-1` },
     h("div", { class: "card-title" }, clip(s.title, 140)),
     h("div", { class: "card-meta" },
-      h("span", { title: "Folder" }, "📁 ", clip(s.folder, 60)),
+      s.worktree ? h("span", { title: s.folder }, "worktree") : null,
       s.branch ? h("span", { title: "Git branch" }, "⑂ ", clip(s.branch, 30)) : null,
       h("span", null, ago(s.lastActive)),
       sum ? h("span", { title: "Tokens used in this session" }, `${shortNumber(sum.tokens.total)} tokens`) : null,
@@ -353,6 +460,6 @@ function dayLabel(ts) {
 
 window.addEventListener("hashchange", route);
 setInterval(() => {
-  if (state.page === "list" && !document.hidden) loadSessions();
+  if ((state.page === "list" || state.page === "repo") && !document.hidden) loadSessions();
 }, 15_000);
 route();

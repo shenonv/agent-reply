@@ -50,13 +50,18 @@ Claude Code uses).
 
 ## What you can do
 
-**Find a session.** Every session on your computer, newest first, grouped by day, with search and a "Running now"
-list. Each session shows its token count, health score and any risky steps.
+**Repositories.** The home page lists every folder (repository) you've used Claude Code in, most recent first. Each
+one shows its number of sessions, branches, tokens, average health and risky steps, with a dot when Claude is working
+there right now. Sessions run in Claude Code worktrees (`.claude/worktrees/…`) are counted under their repository.
+Search finds repositories by name or by any of their sessions.
+
+**A repository's sessions.** Open a repository to see its totals and its sessions, grouped by day, with a "Running
+now" list. Each session shows its branch, tokens, health score and any risky steps.
 
 **Overview.** Everything across all your sessions for the last 7, 30 or 90 days, or all time:
 - total tokens, sessions, requests, cache reuse, the helpers' share and the average health
 - a chart of tokens per day (with a table view)
-- breakdowns by model and by project folder
+- breakdowns by model and by repository
 - the biggest and the roughest sessions
 - every risky step across all sessions, each one linking to the exact step
 - the most-used tools and the most-changed files

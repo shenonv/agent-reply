@@ -304,3 +304,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* repositories */
+.repo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: 0.6rem; margin-top: 1rem; }
+.repo-card { margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.repo-name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; display: flex; align-items: center; gap: 0.2rem; }
+.repo-path { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.search-row { margin-top: 1rem; }
+.intro .crumb { display: inline-block; margin-bottom: 0.5rem; }

@@ -71,6 +71,24 @@ export function tsOf(r) {
 }
 
 /**
+ * The repository a working folder belongs to. Claude Code worktrees (<repo>/.claude/worktrees/<name>) count as their
+ * repository. Returns the root folder, its display name, a comparison key, and whether it was a worktree.
+ * Only looks at the path text; never reads the project's own files.
+ * @param {string | undefined} cwd
+ */
+export function repoOf(cwd) {
+  if (typeof cwd !== "string" || !cwd.trim()) return null;
+  let root = cwd.trim().replace(/[\\/]+$/, "");
+  const wt = /^(.*?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+(?:[\\/].*)?$/.exec(root);
+  if (wt && wt[1]) root = wt[1];
+  const name = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
+  // Windows paths ignore case; compare them in one spelling.
+  const windows = /^[a-z]:[\\/]/i.test(root) || root.includes("\\");
+  const key = windows ? root.replace(/\\/g, "/").toLowerCase() : root;
+  return { root, name, key, worktree: !!wt };
+}
+
+/**
  * Title and basics from a slice of records, for the session list.
  * @param {LogRecord[]} records
  */

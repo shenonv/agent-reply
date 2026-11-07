@@ -167,3 +167,17 @@ test("overview: one session summarised, then combined over a time range", async 
   assert.equal(later.sessions, 0);
   assert.equal(later.tokens, 0);
 });
+
+test("repositories: worktrees count as their repository; Windows paths ignore case", async () => {
+  const { repoOf } = await import("../src/core/records.js");
+  assert.deepEqual(repoOf("C:\\Users\\demo\\shop"), { root: "C:\\Users\\demo\\shop", name: "shop", key: "c:/users/demo/shop", worktree: false });
+  const wt = repoOf("C:\\Users\\demo\\Shop\\.claude\\worktrees\\fix-tax");
+  assert.equal(wt.name, "Shop");
+  assert.equal(wt.key, "c:/users/demo/shop");
+  assert.equal(wt.worktree, true);
+  assert.equal(repoOf("/home/bob/app/.claude/worktrees/x/src").root, "/home/bob/app");
+  assert.equal(repoOf("/home/bob/app/").name, "app");
+  assert.notEqual(repoOf("/home/bob/App").key, repoOf("/home/bob/app").key); // Linux and macOS paths keep their case
+  assert.equal(repoOf(""), null);
+  assert.equal(repoOf(undefined), null);
+});

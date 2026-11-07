@@ -10,6 +10,7 @@ import { slimRecord, slimAgentMeta } from "./slim.js";
 import { redactDeep } from "./redact.js";
 import { createModel, addRecords, addAgentMeta } from "../core/model.js";
 import { summarizeSession } from "../core/overview.js";
+import { repoOf } from "../core/records.js";
 
 const MAX_SESSION_BYTES = 200 * 1024 * 1024; // larger sessions are listed but not summarised
 const MAX_META = 64 * 1024;
@@ -103,7 +104,15 @@ export function createOverview() {
       const f = files[i];
       const entry = await summaryFor(f);
       if (entry?.summary) {
-        const s = { ...entry.summary, project: handleOf(f.projectId), sessionId: f.sessionId };
+        const repo = repoOf(/** @type {any} */ (entry.summary).folder);
+        const s = {
+          ...entry.summary,
+          project: handleOf(f.projectId),
+          sessionId: f.sessionId,
+          repo: repo ? handleOf(`repo:${repo.key}`) : handleOf(`project:${f.projectId}`),
+          repoName: repo ? repo.name : "(unknown folder)",
+          repoPath: repo ? repo.root : "",
+        };
         out.push(redact ? redactDeep(s, redact) : s);
       } else skipped++;
       if (Date.now() - lastSent > 150 || i === files.length - 1) {

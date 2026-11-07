@@ -59,7 +59,9 @@ export function renderOverview(state) {
     dailyChart(c.timeline),
     h("div", { class: "two-col" },
       h("div", null, h("h3", null, "By model"), barTable(c.byModel.map(([k, v]) => [k, v, ""]), c.tokens, "Model")),
-      h("div", null, h("h3", null, "By project folder"), barTable(c.byFolder.map(([k, v]) => [clip(k, 48), v.tokens, `${v.sessions} session${v.sessions > 1 ? "s" : ""}`]), c.tokens, "Folder")),
+      h("div", null, h("h3", null, "By repository"), barTable(c.byFolder.map(([, v]) => [
+        v.repo ? h("a", { href: `#/r/${v.repo}`, title: v.path }, clip(v.name, 40)) : clip(v.name, 40),
+        v.tokens, `${v.sessions} session${v.sessions > 1 ? "s" : ""}`]), c.tokens, "Repository")),
     ),
     h("div", { class: "two-col" },
       h("div", null, h("h3", null, "Biggest sessions"), sessionList(c.biggest, (s) => `${shortNumber(s.rangeTokens)} tokens`)),

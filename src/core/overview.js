@@ -89,7 +89,7 @@ export function summarizeSession(model) {
   };
 }
 
-/** @typedef {ReturnType<typeof summarizeSession> & { project: string, sessionId: string }} SessionSummary */
+/** @typedef {ReturnType<typeof summarizeSession> & { project: string, sessionId: string, repo?: string, repoName?: string, repoPath?: string }} SessionSummary */
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -118,7 +118,7 @@ export function combine(sessions, days, now = Date.now()) {
 
   /** @type {Map<string, number>} */ const perDay = new Map();
   /** @type {Map<string, number>} */ const byModel = new Map();
-  /** @type {Map<string, { tokens: number, sessions: number }>} */ const byFolder = new Map();
+  /** @type {Map<string, { tokens: number, sessions: number, name: string, path: string, repo: string }>} */ const byFolder = new Map();
   /** @type {Map<string, { calls: number, errors: number }>} */ const tools = new Map();
   /** @type {Map<string, { path: string, name: string, changes: number, sessions: number }>} */ const files = new Map();
   /** @type {any[]} */ const risks = [];
@@ -146,11 +146,12 @@ export function combine(sessions, days, now = Date.now()) {
     active.push({ ...s, rangeTokens: sessionTokens });
     tokens += sessionTokens;
     requests += sessionRequests;
-    const folder = s.folder || "(unknown folder)";
-    const f = byFolder.get(folder) ?? { tokens: 0, sessions: 0 };
+    // Grouped by repository (worktrees count as their repository); older summaries fall back to the folder.
+    const key = s.repo || s.folder || "(unknown folder)";
+    const f = byFolder.get(key) ?? { tokens: 0, sessions: 0, name: s.repoName || s.folder || "(unknown folder)", path: s.repoPath || s.folder || "", repo: s.repo || "" };
     f.tokens += sessionTokens;
     f.sessions++;
-    byFolder.set(folder, f);
+    byFolder.set(key, f);
     for (const [name, t] of Object.entries(s.tools)) {
       const x = tools.get(name) ?? { calls: 0, errors: 0 };
       x.calls += t.calls;

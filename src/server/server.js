@@ -14,7 +14,7 @@ import {
 import { createRedactor } from "./redact.js";
 import { resolveSession, listSessionFiles, realProjectsRoot } from "./paths.js";
 import { readHeadTail, parseLines } from "./reader.js";
-import { summarize } from "../core/records.js";
+import { summarize, repoOf } from "../core/records.js";
 import { streamSession } from "./stream.js";
 import { createOverview } from "./overview.js";
 
@@ -171,8 +171,13 @@ export async function startServer(opts = {}) {
         }
       }
       const s = /** @type {ReturnType<typeof summarize>} */ (cached.value);
+      const repo = repoOf(s.cwd);
       out.push({
         project: handleOf(f.projectId),
+        repo: repo ? handleOf(`repo:${repo.key}`) : handleOf(`project:${f.projectId}`),
+        repoName: repo ? m(repo.name) : "(unknown folder)",
+        repoPath: repo ? m(repo.root) : "",
+        worktree: repo?.worktree ?? false,
         sessionId: f.sessionId,
         title: m(clip(s.title ?? "(no message yet)", 160)),
         folder: s.cwd ? m(s.cwd) : "(unknown folder)",
