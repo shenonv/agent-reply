@@ -36,7 +36,8 @@ export function renderChat(state, ri) {
         );
         row.append(who, details);
       } else {
-        row.append(who, textBlock(s.text ?? s.what, "prose"), images(s.images));
+        // append() would print "null" for a missing part, so leave those out
+        row.append(...[who, textBlock(s.text ?? s.what, "prose"), images(s.images)].filter(Boolean));
         row.addEventListener("dblclick", () => selectStep(s.id));
       }
       return row;

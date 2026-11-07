@@ -51,8 +51,9 @@ test("page saves nothing in the browser", () => {
 
 test("page loads nothing from other sites and has no inline script or style", () => {
   for (const [file, code] of sources("public")) {
-    // The SVG namespace is an identifier, not a download, so it's the one allowed address.
-    const code2 = strip(code).replaceAll('"http://www.w3.org/2000/svg"', '""');
+    // The SVG namespace is an identifier, not a download, so it's the one allowed address
+    // (in JavaScript, and inside the search icon's data: image in the CSS).
+    const code2 = strip(code).replace(/(["'])http:\/\/www\.w3\.org\/2000\/svg\1/g, '""');
     assert.doesNotMatch(code2, /\b(?:https?:)?\/\/(?!127\.0\.0\.1|localhost)[a-z0-9.-]+\.[a-z]{2,}/i, file);
     if (file.endsWith(".html")) {
       assert.doesNotMatch(code, /<script(?![^>]*\bsrc=)[^>]*>/i, `${file}: inline script`);
